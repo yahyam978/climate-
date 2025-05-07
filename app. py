@@ -1,0 +1,89 @@
+import streamlit as st
+import pandas as pd
+from fpdf import FPDF
+import base64
+
+# Material and energy impact data
+material_impacts = {
+    "Ammonia": {"co2": 2.38, "water": 1.8, "energy": 38.0, "acidification": 0.022},
+    "Ethylene": {"co2": 1.75, "water": 1.2, "energy": 78.0, "acidification": 0.015},
+    "PVC": {"co2": 2.8, "water": 1.7, "energy": 62.0, "acidification": 0.028}
+}
+
+energy_impacts = {
+    "Coal": {"co2": 1.02, "water": 0.004, "energy": 3.6, "acidification": 0.0012},
+    "Natural Gas": {"co2": 0.49, "water": 0.002, "energy": 3.6, "acidification": 0.0003},
+    "Solar": {"co2": 0.05, "water": 0.001, "energy": 3.6, "acidification": 0.0001}
+}
+
+# Streamlit app
+st.set_page_config(page_title="LCA Calculator", page_icon="🌍")
+
+st.title("♻️ Chemical Process LCA Calculator")
+st.caption("Developed for Climate Change Course | Chemical Engineering Department")
+
+# User inputs
+col1, col2 = st.columns(2)
+with col1:
+    material = st.selectbox("Select Material", list(material_impacts.keys()))
+    material_amount = st.number_input("Amount (kg)", min_value=0.0, value=1.0)
+with col2:
+    energy_type = st.selectbox("Energy Source", list(energy_impacts.keys()))
+    energy_amount = st.number_input("Energy (kWh)", min_value=0.0, value=1.0)
+
+# Calculations
+if st.button("Calculate Impact"):
+    co2 = (material_impacts[material]["co2"] * material_amount) + (energy_impacts[energy_type]["co2"] * energy_amount)
+    water = (material_impacts[material]["water"] * material_amount) + (energy_impacts[energy_type]["water"] * energy_amount)
+    energy = (material_impacts[material]["energy"] * material_amount) + (energy_impacts[energy_type]["energy"] * energy_amount)
+    acid = (material_impacts[material]["acidification"] * material_amount) + (energy_impacts[energy_type]["acidification"] * energy_amount)
+    
+    # Display results
+    st.subheader("Results")
+    results = {
+        "Impact": ["CO₂ Emissions", "Water Use", "Energy Demand", "Acidification"],
+        "Value": [f"{co2:.2f} kg", f"{water:.2f} m³", f"{energy:.2f} MJ", f"{acid:.4f} kg SO₂-eq"],
+        "Score": [min(int(co2/2)+1, 10), min(int(water/2)+1, 10), min(int(energy/50)+1, 10), min(int(acid*100)+1, 10)]
+    }
+    df = pd.DataFrame(results)
+    st.table(df)
+    
+    # Visual indicators
+    st.subheader("Impact Scores (1-10)")
+    for i, row in df.iterrows():
+        st.progress(row['Score']/10, text=f"{row['Impact']}: {row['Score']}/10")
+    
+    # PDF export
+    def create_pdf():
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", size=12)
+        pdf.cell(200, 10, txt="LCA Calculation Report", ln=1, align='C')
+        pdf.cell(200, 10, txt=f"Material: {material} ({material_amount} kg)", ln=1)
+        pdf.cell(200, 10, txt=f"Energy: {energy_type} ({energy_amount} kWh)", ln=1)
+        pdf.ln(10)
+        for i, row in df.iterrows():
+            pdf.cell(200, 10, txt=f"{row['Impact']}: {row['Value']} | Score: {row['Score']}/10", ln=1)
+        return pdf.output(dest='S').encode('latin1')
+    
+    pdf_data = create_pdf()
+    st.download_button(
+        label="📄 Export as PDF",
+        data=pdf_data,
+        file_name="lca_report.pdf",
+        mime="application/pdf"
+    )
+
+# How to use section
+with st.expander("ℹ️ How to use this calculator"):
+    st.markdown("""
+    1. Select a material and enter the amount in kilograms
+    2. Select an energy source and enter consumption in kWh
+    3. Click 'Calculate Impact' to see results
+    4. Export your report as PDF for documentation
+    """)
+    st.image("https://cdn-icons-png.flaticon.com/512/3132/3132735.png", width=100)
+
+# Footer
+st.markdown("---")
+st.caption("Developed by [Your Name] | Faculty of Engineering, Chemical Engineering Department")
